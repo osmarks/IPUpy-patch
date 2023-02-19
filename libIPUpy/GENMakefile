@@ -1,0 +1,11 @@
+include micropython/py/mkenv.mk
+QSTR_DEFS = qstrdefsport.h
+MICROPY_ROM_TEXT_COMPRESSION ?= 1
+include $(TOP)/py/py.mk
+
+INC += -I.
+INC += -I$(TOP)
+INC += -I$(BUILD)
+CFLAGS = $(INC) -Wall -Werror -Wdouble-promotion -Wfloat-conversion -std=c99 $(COPT)
+
+include $(TOP)/py/mkrules.mk
