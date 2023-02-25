@@ -1,4 +1,4 @@
-![alt text](imgs/IPUpy.png)
+<img align="center" src="imgs/IPUpy.png">
 
 # What
 
@@ -35,7 +35,7 @@ From the examples directory, run multirepl:
 
 Each interpreter is given a unique python int called `__tileid`. Additionally, if you pass a file name as a cmdline argument to `multirepl`, the file will be read and divided equally between tiles, accessible in each interpreter by the string variable `__filedata`. This allows interactive parallel processing of the a file's contents, e.g., the linux built-in dictionary of words:
 
-<img align="left" src="imgs/multirepl2.PNG">
+<img align="left" src="imgs/multirepl2.png">
 
 ### More Chips
 
