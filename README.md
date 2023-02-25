@@ -31,17 +31,17 @@ make -C examples
 
 From the examples directory, run multirepl:
 
-<img align="left" src="imgs/multirepl1.PNG">
+![](imgs/multirepl1.PNG)
 
 Each interpreter is given a unique python int called `__tileid`. Additionally, if you pass a file name as a cmdline argument to `multirepl`, the file will be read and divided equally between tiles, accessible in each interpreter by the string variable `__filedata`. This allows interactive parallel processing of the a file's contents, e.g., the linux built-in dictionary of words:
 
-<img align="left" src="imgs/multirepl2.png">
+![](imgs/multirepl2.png)
 
 ### More Chips
 
 If you happen to have access to more IPUs, you can increase `NUMIPUS=1` in `multirepl_params.h` and it will parallelise across as many chips as you want. Here are **47K** python interpreters muxed together into a single repl :D  This has high compile time, but zero noticeable latency at run time.
 
-<img align="left" src="imgs/multirepl3.PNG">
+![](imgs/multirepl3.PNG)
 
 ### Communicating Between Interpreters
 
@@ -55,11 +55,11 @@ Changing the following parameters in `mutlirepl_params.h` (and cleaning and reco
 
 Now, the python function `alltoall` takes any python object as an input (as long as it can be `repr`'d into 64 bytes :D) , serialises it and broadcasts to all other interpreters. It returns a list of all the received objects.
 
-<img align="left" src="imgs/multirepl4.PNG">
+![](imgs/multirepl4.PNG)
 
 We can use this primitive to define an easy parallel algorithm.
 
-<img align="left" src="imgs/multirepl5.PNG">
+![](imgs/multirepl5.PNG)
 
 Be warned! This example is beginning to stretch this hacky POC codebase, which is why I've turned  the number of tiles down to 100. You might notice you can only execute `alltoall` a finite number of times before some horrible memory corruption bug locks up the application and eventually kills it. Oh well.
 
