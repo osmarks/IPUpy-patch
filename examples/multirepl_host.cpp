@@ -33,11 +33,19 @@ int main(int argc, char** argv) {
   char* fileBuf_h = (char*) malloc(maxFileSize);
   unsigned inBufSize = 2;
   unsigned perTileFileSize = 0;
-  if (argc == 2) {
+  bool useFile = argc == 2;
+  if (useFile) {
     std::ifstream infile(argv[1], std::ios::in);
+    if (!infile.is_open()) {
+      std::cout << "Failed to open file " << argv[1] << "\n";
+      return EXIT_FAILURE;
+    }
     unsigned fileSize = infile.read(fileBuf_h, maxFileSize).gcount();
     infile.close();
     perTileFileSize = (fileSize + NUMREPLS - 1) / NUMREPLS;
+    if (fileSize == maxFileSize) {
+      std::cout << "WARNING: Trimming input file to fit predefined buffer size\n";
+    }
   }
 
   Tensor printBuf = graph.addVariable(CHAR, {NUMREPLS, PRINTBUFSIZE}, "printBuf");
@@ -65,7 +73,7 @@ int main(int argc, char** argv) {
   ComputeSet anycoroutine_computeset = graph.addComputeSet("AlldoneCS");
   for (unsigned i = 0; i < NUMREPLS; ++i) {
     VertexRef tileid_vtx = graph.addVertex(tileid_computeset, "TileIDGrabber", {{"tileid", tileidTensor[i]}});
-    VertexRef init_vtx = graph.addVertex(init_computeset, "InitVertex", {
+    VertexRef init_vtx = graph.addVertex(init_computeset, poputil::templateVertex("InitVertex", useFile ? "true" : "false"), {
       {"printBuf", printBuf[i]}, 
       {"fileBuf", fileBuf[i]},
       {"inBuf", inBuf}, 
@@ -130,7 +138,7 @@ int main(int argc, char** argv) {
   char cacheFile[] = "pod1_dict";
   Executable exe;
   if (1) {
-    printf("Running compilation...\n");
+    // printf("Running compilation...\n");
     exe = compileGraph(graph, {program}, {}); /*{{"debug.outputAllSymbols", "true"},
                                           {"target.saveArchive", "archive.a"},
                                           //{"debug.logStackSizeAnalysis", "true"},
@@ -142,7 +150,7 @@ int main(int argc, char** argv) {
     exe = Executable::deserialize(inFile);
   }
 
-  printf("Creating engine\n");
+  // printf("Creating engine...\n");
   Engine engine(std::move(exe));
 
 
@@ -166,8 +174,9 @@ int main(int argc, char** argv) {
       if (last_char == '\t') {
         std::cout << "\n\e[01;34m[" << x.second << "x] " << "\e[0m" << content;
       } else if (content.length() > 6) {
-        std::cout << "\n\e[01;34m---------- [" << x.second << "x] ----------" << "\e[0m\n";
-        std::cout << content.substr(2, content.length() - 7);
+        std::cout << "\n\e[01;34m---------- [" << x.second << "x] ----------";
+        for (int i = 0; i < 0 + (x.second < 1000) + (x.second < 100) + (x.second < 10); ++i) printf("-");
+        std::cout << "\e[0m\n" << content.substr(2, content.length() - 7);
       }
     }
     std::cout << "\n>>> ";

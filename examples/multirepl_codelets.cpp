@@ -36,6 +36,7 @@ struct TileIDGrabber: public poplar::SupervisorVertex {
 void** addressOfInBufPtr = nullptr; 
 void** addressOfOutBufPtr = nullptr;
 
+template <bool useFile>
 struct InitVertex: public poplar::Vertex {
     poplar::Output<poplar::Vector<char>> printBuf;
     poplar::Input<poplar::Vector<char>> fileBuf;
@@ -52,8 +53,10 @@ struct InitVertex: public poplar::Vertex {
         );
         IPUpy_set_stdout(&printBuf[0], printBuf.size());
         IPUpy_init(poplar_stack_bottom, *tileid);
-        int fileLen = std::min(fileBuf.size(), strlen(&fileBuf[0]));
-        IPUpy_add_memory_as_string("__filedata", &fileBuf[0], fileLen);
+        if (useFile) {
+            int fileLen = std::min(fileBuf.size(), strlen(&fileBuf[0]));
+            IPUpy_add_memory_as_string("__filedata", &fileBuf[0], fileLen);
+        }
 #ifdef COMMS
         IPUpy_add_memory_as_relocatable_array("__sendbuf", &addressOfOutBufPtr, COMMSBUFSIZE);
         IPUpy_add_memory_as_relocatable_array("__recvbuf", &addressOfInBufPtr, COMMSBUFSIZE * NUMREPLS);
@@ -90,12 +93,16 @@ def alltoall(payload):
     }
 };
 
+template struct InitVertex<true>;
+template struct InitVertex<false>;
+
 
 bool checkpoint_is_live = false;
+// extern "C" char * IPUpy_stdout_head;
 
 template <bool firstRun>
 struct RuntimeVertex: public poplar::MultiVertex {
-    poplar::Output<poplar::Vector<char>> printBuf;
+    poplar::InOut<poplar::Vector<char>> printBuf;
     poplar::Input<poplar::Vector<char>> fileBuf;
     poplar::Input<poplar::Vector<char>> inBuf;
     poplar::InOut<bool> doneFlag;
@@ -108,6 +115,7 @@ struct RuntimeVertex: public poplar::MultiVertex {
     // Time-travelling spaghetti-code; Do Not Read
     void compute(unsigned tid) {
         if (tid != 5) return;
+        // if (IPUpy_stdout_head != &printBuf[0]) asm("trap 0\n");
 
 #ifdef COMMS
         *addressOfInBufPtr = (void*) &commsInBuf[0];
