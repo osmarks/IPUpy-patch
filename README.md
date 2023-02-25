@@ -1,4 +1,6 @@
-<img align="center" src="imgs/IPUpy.png">
+<p align="center">
+  <img src="imgs/IPUpy.png">
+</p>
 
 # What
 
