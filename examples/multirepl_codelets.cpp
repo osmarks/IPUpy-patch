@@ -55,7 +55,7 @@ struct InitVertex: public poplar::Vertex {
         IPUpy_init(poplar_stack_bottom, *tileid);
         if (useFile) {
             int fileLen = std::min(fileBuf.size(), strlen(&fileBuf[0]));
-            IPUpy_add_memory_as_string("__filedata", &fileBuf[0], fileLen);
+            IPUpy_add_memory_as_string("__tiledata", &fileBuf[0], fileLen);
         }
 #ifdef COMMS
         IPUpy_add_memory_as_relocatable_array("__sendbuf", &addressOfOutBufPtr, COMMSBUFSIZE);
