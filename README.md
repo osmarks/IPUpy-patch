@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="imgs/IPUpy.png">
+  <img src="imgs/IPUpy.png" width=350px>
 </p>
 
 # What
@@ -47,7 +47,7 @@ If you happen to have access to more IPUs in a single machine, you can increase 
 
 ### Communicating Between Interpreters
 
-Changing the following parameters in `mutlirepl_params.h` (and cleaning and recompiling the examples directory) will setup the multirepl with a simple all-to-all data exchange primitive.
+Changing the following parameters in `mutlirepl_params.h` (and cleaning and recompiling the examples directory) will set up the multirepl with a simple all-to-all data exchange primitive.
 
 ```c
 #define COMMS        (true)
