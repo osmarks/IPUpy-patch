@@ -48706,11 +48706,16 @@ char *IPUpy_stack_top;
 
 #if MICROPY_ENABLE_GC
 void gc_collect(void) {
-    // WARNING: This gc_collect implementation doesn't try to get root
-    // pointers from IPU registers, and thus may function incorrectly.
-    void *stack_bottom;
+    // This gc_collect implementation doesn't try to get root pointers from registers.
+    // Other micropython ports will try to do this in case GC is triggered by an interupt
+    // but I don't think this is necessary on IPU (no interrupts)
+    void** stack_bottom;
+    asm volatile(
+        "mov %[stack_bottom], $m11" 
+        : [stack_bottom] "+r" (stack_bottom) ::
+    );
     gc_collect_start();
-    gc_collect_root(&stack_bottom, ((mp_uint_t)IPUpy_stack_top - (mp_uint_t)&stack_bottom) / sizeof(mp_uint_t));
+    gc_collect_root(stack_bottom, ((mp_uint_t)stack_bottom - (mp_uint_t)IPUpy_stack_top) / sizeof(mp_uint_t));
     gc_collect_end();
     // gc_dump_info();
 }
@@ -48833,7 +48838,7 @@ uint64_t mp_hal_time_ns(void) {
 
 
 #if MICROPY_ENABLE_GC
-static char IPUpy_heap[200*1024];
+static char IPUpy_heap[250*1024];
 #endif
 
 #if MICROPY_ENABLE_PYSTACK
