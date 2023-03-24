@@ -3,6 +3,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <fstream>
+#include <filesystem>
 #include <iostream>
 #include <memory>
 #include <list>
@@ -32,6 +33,7 @@ struct KernelResult {
 
 static std::unique_ptr<Engine> engine;
 static char inBuf_h[INPUTBUFSIZE] = {0};
+static unsigned displayBuf_h[NUMREPLS] = {0};
 std::map<std::string, int> resultCounter;
 std::list<KernelResult> resultQueue;
  
@@ -60,6 +62,7 @@ extern "C" int init() {
   }
 
   Tensor printBuf = graph.addVariable(CHAR, {NUMREPLS, PRINTBUFSIZE}, "printBuf");
+  Tensor displayBuf = graph.addVariable(UNSIGNED_INT, {NUMREPLS}, "displayBuf");
   Tensor tileidTensor = graph.addVariable(UNSIGNED_INT, {NUMREPLS}, "tileidTensor");
   Tensor inBuf = graph.addVariable(CHAR, {INPUTBUFSIZE}, "inBuf");
   Tensor fileBuf = graph.addVariable(CHAR, {NUMREPLS, perTileFileSize}, "fileBuf");
@@ -72,20 +75,20 @@ extern "C" int init() {
 
   graph.setTileMapping(inBuf, 0);
   DataStream printBufStream = graph.addDeviceToHostFIFO("printBuf-stream", poplar::CHAR, PRINTBUFSIZE * NUMREPLS);
+  DataStream displayBufStream = graph.addDeviceToHostFIFO("displayBuf-stream", poplar::UNSIGNED_INT, NUMREPLS);
   DataStream inBufStream = graph.addHostToDeviceFIFO("inBuf-stream", poplar::CHAR, INPUTBUFSIZE);
   DataStream fileBufStream = graph.addHostToDeviceFIFO("fileBuf-stream", poplar::CHAR, perTileFileSize * NUMREPLS);
 
 
   graph.addCodelets("multikernel_codelets.gp");
-  ComputeSet tileid_computeset = graph.addComputeSet("TileidCS");
   ComputeSet init_computeset = graph.addComputeSet("InitCS");
   ComputeSet firstruntime_computeset = graph.addComputeSet("FirstRTCS");
   ComputeSet runtime_computeset = graph.addComputeSet("RTCS");
   ComputeSet anycoroutine_computeset = graph.addComputeSet("AlldoneCS");
   for (unsigned i = 0; i < NUMREPLS; ++i) {
-    VertexRef tileid_vtx = graph.addVertex(tileid_computeset, "TileIDGrabber", {{"tileid", tileidTensor[i]}});
     VertexRef init_vtx = graph.addVertex(init_computeset, poputil::templateVertex("InitVertex", useFile ? "true" : "false"), {
       {"printBuf", printBuf[i]}, 
+      {"displayBuf", displayBuf[i]}, 
       {"fileBuf", fileBuf[i]},
       {"inBuf", inBuf}, 
       {"doneFlag", doneFlag[i]}, 
@@ -94,6 +97,7 @@ extern "C" int init() {
     });
     VertexRef firstruntime_vtx = graph.addVertex(firstruntime_computeset, poputil::templateVertex("RuntimeVertex", "true"), {
       {"printBuf", printBuf[i]}, 
+      {"displayBuf", displayBuf[i]}, 
       {"fileBuf", fileBuf[i]}, 
       {"inBuf", inBuf},
       {"doneFlag", doneFlag[i]},
@@ -101,6 +105,7 @@ extern "C" int init() {
     });
     VertexRef runtime_vtx = graph.addVertex(runtime_computeset, poputil::templateVertex("RuntimeVertex", "false"), {
       {"printBuf", printBuf[i]}, 
+      {"displayBuf", displayBuf[i]}, 
       {"fileBuf", fileBuf[i]}, 
       {"inBuf", inBuf},
       {"doneFlag", doneFlag[i]},
@@ -114,12 +119,13 @@ extern "C" int init() {
     graph.setTileMapping(commsInBuf[i], i);
     graph.setTileMapping(commsOutBuf[i], i);
 #endif
-    graph.setTileMapping(tileid_vtx, i);
     graph.setTileMapping(init_vtx, i);
     graph.setTileMapping(firstruntime_vtx, i);
     graph.setTileMapping(runtime_vtx, i);
     graph.setTileMapping(tileidTensor[i], i);
+    graph.setInitialValue<unsigned>(tileidTensor[i], i);
     graph.setTileMapping(printBuf[i], i);
+    graph.setTileMapping(displayBuf[i], i);
     graph.setTileMapping(fileBuf[i], i);
     graph.setTileMapping(doneFlag[i], i);
     graph.setTileMapping(coroutineFlag[i], i);
@@ -129,7 +135,6 @@ extern "C" int init() {
   
   program::Sequence init_program({
     program::Copy(fileBufStream, fileBuf),
-    program::Execute(tileid_computeset),
     program::Execute(init_computeset),
     program::Copy(printBuf, printBufStream)
   });
@@ -143,15 +148,24 @@ extern "C" int init() {
       program::Execute(runtime_computeset)
     })),
 #endif
-    program::Copy(printBuf, printBufStream)
+    program::Copy(printBuf, printBufStream),
+    program::Copy(displayBuf, displayBufStream)
   });
 
 
-  char cacheFile[] = "pod1_dict";
+  char cacheFile[200];
+  snprintf(cacheFile, sizeof(cacheFile), "exeCache/Tiles%d_Ipus%d_Com%s_ComSz%d_File%d",
+    NUMTILES, NUMIPUS, 
+#ifdef COMMS 
+  "y",
+#else
+  "n",
+#endif
+  COMMSBUFSIZE, perTileFileSize);
   Executable exe;
-  if (0) {
+  if (!std::filesystem::exists(cacheFile)) {
     
-    std::cout << "Running compilation...\n";
+    std::cout << "Compiling " << cacheFile << std::endl;;
     fflush(stdout);
     exe = compileGraph(graph, {init_program, runtime_program}, {}); /*
         {{"debug.outputAllSymbols", "true"},
@@ -161,7 +175,7 @@ extern "C" int init() {
     std::ofstream outFile(cacheFile);
     exe.serialize(outFile);
   } else {
-    printf("Loading cached exe %s\n", cacheFile);
+    std::cout << "Loading cached exe " << cacheFile << std::endl;
     auto inFile = std::ifstream(cacheFile);
     exe = Executable::deserialize(inFile);
   }
@@ -173,9 +187,9 @@ extern "C" int init() {
 
   engine->connectStream("fileBuf-stream", fileBuf_h);
   engine->connectStream("inBuf-stream", inBuf_h);
+  engine->connectStream("displayBuf-stream", displayBuf_h);
   engine->connectStreamToCallback("printBuf-stream", [](void* p){
     char* printbuf = (char*) p;
-    if (printbuf[0] == '\0') return;
     
     resultCounter.clear();
     resultQueue.clear();
@@ -188,7 +202,7 @@ extern "C" int init() {
     }
   });
 
-  std::cout << "Loading executable...\n";
+  std::cout << "Copying executable to device\n";
   fflush(stdout);
   engine->load(device);
   std::cout << "Running init program\n";
@@ -224,6 +238,13 @@ extern "C" KernelResult getResult() {
   static char superSafePersistentMemory[PRINTBUFSIZE];
   memcpy(superSafePersistentMemory, res.data, strnlen(res.data, PRINTBUFSIZE - 1) + 1);
   return {res.count, superSafePersistentMemory};
+}
+
+extern "C" unsigned* getDisplay() {
+  return displayBuf_h;
+}
+extern "C" int getNumRepls() {
+  return NUMREPLS;
 }
 
 

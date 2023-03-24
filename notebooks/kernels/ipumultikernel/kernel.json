@@ -1,0 +1,5 @@
+{
+    "argv":["python", "-m", "ipumultikernel", "-f", "{connection_file}"],
+    "display_name":"IPUMultiKernel",
+    "language": "python"
+}

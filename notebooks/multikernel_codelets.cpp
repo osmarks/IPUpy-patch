@@ -23,22 +23,14 @@ extern "C" jmp_buf IPUpy_exit_env;
 extern "C" jmp_buf IPUpy_checkpoint_env;
 
 
-struct TileIDGrabber: public poplar::SupervisorVertex {
-    poplar::Output<unsigned> tileid;
-    __attribute__((target("supervisor")))
-    bool compute() {
-        *tileid = __builtin_ipu_get_tile_id();
-        return true;
-    }
-};
-
-
 void** addressOfInBufPtr = nullptr; 
 void** addressOfOutBufPtr = nullptr;
+void** addressOfDisplayBufPtr = nullptr;
 
 template <bool useFile>
 struct InitVertex: public poplar::Vertex {
     poplar::Output<poplar::Vector<char>> printBuf;
+    poplar::InOut<unsigned> displayBuf;
     poplar::Input<poplar::Vector<char>> fileBuf;
     poplar::Input<poplar::Vector<char>> inBuf;
     poplar::InOut<bool> doneFlag;
@@ -85,6 +77,15 @@ def alltoall(payload):
     return ret
 )", 0);
 #endif
+
+        IPUpy_add_memory_as_relocatable_array("__displayBuf", &addressOfDisplayBufPtr, 4);
+        IPUpy_do_str(R"(
+def setPixel(r=0, g=0, b=0):
+    __displayBuf[0] = 1
+    __displayBuf[1] = max(0, min(255, int(r)))
+    __displayBuf[2] = max(0, min(255, int(g)))
+    __displayBuf[3] = max(0, min(255, int(b)))
+)", 0);
     
         *doneFlag = false;
         *coroutineFlag = false;
@@ -100,6 +101,7 @@ bool checkpoint_is_live = false;
 template <bool firstRun>
 struct RuntimeVertex: public poplar::MultiVertex {
     poplar::InOut<poplar::Vector<char>> printBuf;
+    poplar::InOut<unsigned> displayBuf;
     poplar::Input<poplar::Vector<char>> fileBuf;
     poplar::Input<poplar::Vector<char>> inBuf;
     poplar::InOut<bool> doneFlag;
@@ -113,6 +115,8 @@ struct RuntimeVertex: public poplar::MultiVertex {
     void compute(unsigned tid) {
         if (tid != 5) return;
 
+        // Update mapped memory locations in case the tensors have moved between vertices
+        *addressOfDisplayBufPtr = (void*) &*displayBuf;
 #ifdef COMMS
         *addressOfInBufPtr = (void*) &commsInBuf[0];
         *addressOfOutBufPtr = (void*) &commsOutBuf[0];
@@ -130,6 +134,7 @@ struct RuntimeVertex: public poplar::MultiVertex {
 
         IPUpy_set_stdout(&printBuf[0], printBuf.size());
         if (*doneFlag || (!firstRun && !*coroutineFlag)) return;
+        *displayBuf = 0;
 
         if (inBuf[0] == '\0') {
             *doneFlag = true;
