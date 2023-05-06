@@ -5,8 +5,13 @@
 
 jmp_buf IPUpy_exit_env = {0};
 jmp_buf IPUpy_checkpoint_env = {0};
-static unsigned tileid = 0;
 
+static void (*IPUpy_syscall_callback)();
+void IPUpy_register_syscall_callback(void (*f)()) {
+    IPUpy_syscall_callback = f;
+}
+
+// void IPUpy_read_cycles();
 
 // --------------- py/*.c -------------------- //
 
@@ -5022,6 +5027,7 @@ STATIC const char *const tok_kw[] = {
     "if",
     "import",
     "in",
+    "ipusyscall",
     "is",
     "lambda",
     "longyield",
@@ -8034,6 +8040,10 @@ STATIC void compile_break_cont_stmt(compiler_t *comp, mp_parse_node_struct_t *pn
 
 STATIC void compile_longyield_stmt(compiler_t *comp, mp_parse_node_struct_t *pns) {
     EMIT(longyield);
+}
+
+STATIC void compile_ipusyscall_stmt(compiler_t *comp, mp_parse_node_struct_t *pns) {
+    EMIT(ipusyscall);
 }
 
 STATIC void compile_return_stmt(compiler_t *comp, mp_parse_node_struct_t *pns) {
@@ -11234,6 +11244,10 @@ void mp_emit_bc_pop_top(emit_t *emit) {
 
 void mp_emit_bc_longyield(emit_t *emit) {
     emit_write_bytecode_byte(emit, 0, MP_BC_LONGYIELD);
+}
+
+void mp_emit_bc_ipusyscall(emit_t *emit) {
+    emit_write_bytecode_byte(emit, 0, MP_BC_IPUSYSCALL);
 }
 
 void mp_emit_bc_rot_two(emit_t *emit) {
@@ -38579,6 +38593,13 @@ dispatch_loop:
                     DISPATCH();
                 }
 
+                ENTRY(MP_BC_IPUSYSCALL): {
+                    if (IPUpy_syscall_callback != NULL) {
+                        IPUpy_syscall_callback();
+                    }
+                    DISPATCH();
+                }
+
                 ENTRY(MP_BC_JUMP): {
                     DECODE_SLABEL;
                     ip += slab;
@@ -48758,6 +48779,12 @@ void IPUpy_add_memory_as_string(const char* name, const char* data, size_t size)
     mp_obj_dict_store(&MP_STATE_VM(dict_main), key, MP_OBJ_FROM_PTR(o_str));
 }
 
+void IPUpy_add_int(const char* name, unsigned value) {
+    mp_obj_t var = MP_OBJ_NEW_SMALL_INT(value);
+    mp_obj_t key = mp_obj_new_str(name, strlen(name));
+    mp_obj_dict_store(&MP_STATE_VM(dict_main), key, var);
+}
+
 
 #if MICROPY_ENABLE_COMPILER
 void IPUpy_do_str(const char *src, int is_single_line) {
@@ -48804,6 +48831,14 @@ void mp_hal_stdout_tx_str(const char *str) {
     mp_hal_stdout_tx_strn(str, strlen(str));
 }
 
+
+uint64_t mp_hal_time_ns(void) {
+    unsigned int U;
+    // get $COUNT_U
+    asm volatile("get %[U], 0x61": [U] "+r"(U) ::);
+    return U;
+}
+
 void mp_hal_stdout_tx_strn_cooked(const char *str, size_t len) {
     const char *last = str;
     while (len--) {
@@ -48823,19 +48858,6 @@ void mp_hal_stdout_tx_strn_cooked(const char *str, size_t len) {
     }
 }
 
-uint64_t mp_hal_time_ns(void) {
-    uint64_t ns = 0;
-    /*asm volatile(
-        "shl %[ns], $COUNT_U, 2 \n"
-        "shr $m1, $COUNT_L,  30 \n"
-        "or %[ns], %[ns], $m1   \n"
-        : [ns] "+r" (ns)
-        : 
-        : "$m1"
-    );*/
-    return ns;
-}
-
 
 #if MICROPY_ENABLE_GC
 static char IPUpy_heap[250*1024];
@@ -48845,7 +48867,8 @@ static char IPUpy_heap[250*1024];
 static mp_obj_t IPUpy_pystack[5 * 1024];
 #endif
 
-void IPUpy_init(char *poplar_stack_bottom, unsigned tileid) {
+
+void IPUpy_init(char *poplar_stack_bottom) {
 
     IPUpy_stack_top = poplar_stack_bottom;
 
@@ -48858,10 +48881,6 @@ void IPUpy_init(char *poplar_stack_bottom, unsigned tileid) {
     #endif
 
     mp_init();
-
-    mp_obj_t var = MP_OBJ_NEW_SMALL_INT(tileid);
-    mp_obj_t key = mp_obj_new_str("__tileid", 8);
-    mp_obj_dict_store(&MP_STATE_VM(dict_main), key, var);
 }
 
 
@@ -48883,8 +48902,3 @@ int mp_hal_stdin_rx_chr(void) {
     return c;
 }
 
-
-
-void IPUpy_set_tileid(unsigned x) {
-    tileid = x;
-}

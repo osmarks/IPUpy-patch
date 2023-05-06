@@ -149,5 +149,6 @@
 
 
 #define MP_BC_LONGYIELD                      (MP_BC_BASE_BYTE_E + 0x0b)
+#define MP_BC_IPUSYSCALL                     (MP_BC_BASE_BYTE_E + 0x0c)
 
 #endif // MICROPY_INCLUDED_PY_BC0_H

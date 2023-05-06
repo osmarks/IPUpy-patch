@@ -127,7 +127,7 @@ DEF_RULE_NC(augassign, or(13), tok(DEL_PLUS_EQUAL), tok(DEL_MINUS_EQUAL), tok(DE
 
 DEF_RULE(del_stmt, c(del_stmt), and(2), tok(KW_DEL), rule(exprlist))
 DEF_RULE(pass_stmt, c(generic_all_nodes), and(1), tok(KW_PASS))
-DEF_RULE_NC(flow_stmt, or(5), rule(break_stmt), rule(continue_stmt), rule(longyield_stmt), rule(return_stmt), rule(raise_stmt), rule(yield_stmt))
+DEF_RULE_NC(flow_stmt, or(7), rule(break_stmt), rule(continue_stmt), rule(longyield_stmt), rule(ipusyscall_stmt), rule(return_stmt), rule(raise_stmt), rule(yield_stmt))
 DEF_RULE(break_stmt, c(break_cont_stmt), and(1), tok(KW_BREAK))
 DEF_RULE(continue_stmt, c(break_cont_stmt), and(1), tok(KW_CONTINUE))
 DEF_RULE(return_stmt, c(return_stmt), and(2), tok(KW_RETURN), opt_rule(testlist))
@@ -137,6 +137,7 @@ DEF_RULE_NC(raise_stmt_arg, and_ident(2), rule(test), opt_rule(raise_stmt_from))
 DEF_RULE_NC(raise_stmt_from, and_ident(2), tok(KW_FROM), rule(test))
 
 DEF_RULE(longyield_stmt, c(longyield_stmt), and(1), tok(KW_LONGYIELD))
+DEF_RULE(ipusyscall_stmt, c(ipusyscall_stmt), and(1), tok(KW_IPUSYSCALL))
 
 // import_stmt: import_name | import_from
 // import_name: 'import' dotted_as_names

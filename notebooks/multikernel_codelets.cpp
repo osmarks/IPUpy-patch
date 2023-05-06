@@ -4,12 +4,6 @@
 #include "multikernel_params.hpp"
 
 
-DEF_STACK_USAGE(RECURSIVE_FUNCTION_SIZE, "pyexec_event_repl_init");
-extern "C" void pyexec_event_repl_init();
-DEF_STACK_USAGE(RECURSIVE_FUNCTION_SIZE, "pyexec_event_repl_process_char");
-extern "C" int pyexec_event_repl_process_char(int c);
-DEF_STACK_USAGE(RECURSIVE_FUNCTION_SIZE, "IPUpy_add_memory_as_relocatable_array");
-extern "C" void IPUpy_add_memory_as_relocatable_array(const char* name, void*** data_ptr, size_t num_elts);
 
 typedef struct jmp_buf_t {
     unsigned int MRF[5];
@@ -21,6 +15,34 @@ DEF_STACK_USAGE(RECURSIVE_FUNCTION_SIZE, "longjmp");
 extern "C" void __attribute__((noreturn)) longjmp(jmp_buf env, int val);
 extern "C" jmp_buf IPUpy_exit_env;
 extern "C" jmp_buf IPUpy_checkpoint_env;
+DEF_STACK_USAGE(RECURSIVE_FUNCTION_SIZE, "IPUpy_register_syscall_callback");
+extern "C" void IPUpy_register_syscall_callback(void (*f)());
+
+
+static int syscallFlag = -1;
+static unsigned cyclesBuf[2] = {0};
+void syscallCallback() {
+    switch (syscallFlag)
+    {
+    case 1: { // Clock  
+        unsigned int U, L;
+        asm volatile("get %[U], 0x61  \n"  // get $COUNT_U
+                     "get %[L], 0x60  \n"  // get $COUNT_L
+        : [U] "+r"(U), [L] "+r"(L) : : );
+        // Reduce to 30-bit precision in each reg, and 
+        // coarsen resolution by factor 4 to increase range
+        // L advances 12 cycles after U is measured, so
+        // may have wrapped around
+        if (L < 12) U += 1;
+        cyclesBuf[0] = (L >> 2) & 0x3FFFFFFF;
+        cyclesBuf[1] = U & 0x3FFFFFFF;
+        break;
+    }
+    default:
+        break;
+    }
+    syscallFlag = -1;
+}
 
 
 void** addressOfInBufPtr = nullptr; 
@@ -44,11 +66,14 @@ struct InitVertex: public poplar::Vertex {
             : [poplar_stack_bottom] "+r" (poplar_stack_bottom) ::
         );
         IPUpy_set_stdout(&printBuf[0], printBuf.size());
-        IPUpy_init(poplar_stack_bottom, *tileid);
+        IPUpy_init(poplar_stack_bottom);
+        IPUpy_add_int("__tileid", *tileid);
         if (useFile) {
             int fileLen = std::min(fileBuf.size(), strlen(&fileBuf[0]));
             IPUpy_add_memory_as_string("__tiledata", &fileBuf[0], fileLen);
         }
+        IPUpy_add_int("__numtiles", NUMREPLS);
+
 #ifdef COMMS
         IPUpy_add_memory_as_relocatable_array("__sendbuf", &addressOfOutBufPtr, COMMSBUFSIZE);
         IPUpy_add_memory_as_relocatable_array("__recvbuf", &addressOfInBufPtr, COMMSBUFSIZE * NUMREPLS);
@@ -78,6 +103,10 @@ def alltoall(payload):
 )", 0);
 #endif
 
+        IPUpy_add_memory_as_array("__syscallFlag", &syscallFlag, 1, 'i');
+        IPUpy_add_memory_as_array("__cyclesBuf", cyclesBuf, 2, 'i');
+        IPUpy_register_syscall_callback(syscallCallback);
+
         IPUpy_add_memory_as_relocatable_array("__displayBuf", &addressOfDisplayBufPtr, 4);
         IPUpy_do_str(R"(
 def setPixel(r=0, g=0, b=0):
@@ -85,8 +114,32 @@ def setPixel(r=0, g=0, b=0):
     __displayBuf[1] = max(0, min(255, int(r)))
     __displayBuf[2] = max(0, min(255, int(g)))
     __displayBuf[3] = max(0, min(255, int(b)))
+
+def getTime():
+    __syscallFlag[0] = 1
+    ipusyscall
+    return (__cyclesBuf[0], __cyclesBuf[1])
+
+def deltaTime(t1, t2):
+    t1_L, t1_U = t1
+    t2_L, t2_U = t2
+    if t1_U == t2_U:
+        return t2_L - t1_L
+    if t2_U - t1_U > 1:
+        return 0x3FFFFFFF
+    return t2_L + (0x3FFFFFFF - t1_L) + 1
+
+global __rngstate
+__rngstate = __tileid + 1
+def rng():
+    global __rngstate
+    for i in range(10):
+        __rngstate ^= (__rngstate & 0x1FFFF) << 13;
+        __rngstate ^= __rngstate >> 17;
+        __rngstate ^= (__rngstate & 0x1FFFFFF) << 5;
+    return __rngstate
 )", 0);
-    
+
         *doneFlag = false;
         *coroutineFlag = false;
     }

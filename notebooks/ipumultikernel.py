@@ -27,7 +27,6 @@ class IPUMultiKernel(Kernel):
     banner = "IPUMultiKernel"
 
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
         self.backend = CDLL('./libmultikernel.so')
         self.backend.init()
 
@@ -45,6 +44,8 @@ class IPUMultiKernel(Kernel):
 
         self.repeatBlockRegex = re.compile('[\n \t]*!RepeatBlock\(([0-9]+)\)')
         self.endRepeatRegex = re.compile('[\n \t]*!EndRepeat')
+        
+        super().__init__(*args, **kwargs)
 
     def do_execute(self, code, silent, store_history=True, user_expressions=None,
                    allow_stdin=False):

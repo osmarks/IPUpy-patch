@@ -260,6 +260,7 @@ void mp_emit_bc_dup_top(emit_t *emit);
 void mp_emit_bc_dup_top_two(emit_t *emit);
 void mp_emit_bc_pop_top(emit_t *emit);
 void mp_emit_bc_longyield(emit_t *emit);
+void mp_emit_bc_ipusyscall(emit_t *emit);
 void mp_emit_bc_rot_two(emit_t *emit);
 void mp_emit_bc_rot_three(emit_t *emit);
 void mp_emit_bc_jump(emit_t *emit, mp_uint_t label);

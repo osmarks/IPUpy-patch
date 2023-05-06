@@ -87,6 +87,7 @@ typedef enum _mp_token_kind_t {
     MP_TOKEN_KW_IF,
     MP_TOKEN_KW_IMPORT,
     MP_TOKEN_KW_IN,
+    MP_TOKEN_KW_IPUSYSCALL,
     MP_TOKEN_KW_IS,
     MP_TOKEN_KW_LAMBDA,
     MP_TOKEN_KW_LONGYIELD,
