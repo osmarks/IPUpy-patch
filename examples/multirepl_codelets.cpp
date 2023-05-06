@@ -1,15 +1,9 @@
 #include <poplar/Vertex.hpp>
 #include <algorithm>
 
+#include "libIPUpy.hpp"
 #include "multirepl_params.hpp"
 
-
-DEF_STACK_USAGE(RECURSIVE_FUNCTION_SIZE, "pyexec_event_repl_init");
-extern "C" void pyexec_event_repl_init();
-DEF_STACK_USAGE(RECURSIVE_FUNCTION_SIZE, "pyexec_event_repl_process_char");
-extern "C" int pyexec_event_repl_process_char(int c);
-DEF_STACK_USAGE(RECURSIVE_FUNCTION_SIZE, "IPUpy_add_memory_as_relocatable_array");
-extern "C" void IPUpy_add_memory_as_relocatable_array(const char* name, void*** data_ptr, size_t num_elts);
 
 typedef struct jmp_buf_t {
     unsigned int MRF[5];

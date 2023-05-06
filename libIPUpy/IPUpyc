@@ -11,23 +11,7 @@ POPPPY_HEADER = """
 // ------------------------ This code was inserted by IPUpyc -------------------------- //
 #include <poplar/Vertex.hpp>
 #include "poplar/StackSizeDefs.hpp" 
-#define RECURSIVE_FUNCTION_SIZE (5 * 1024)
-DEF_STACK_USAGE(RECURSIVE_FUNCTION_SIZE, "IPUpy_init");
-DEF_STACK_USAGE(RECURSIVE_FUNCTION_SIZE, "IPUpy_deinit");
-DEF_STACK_USAGE(RECURSIVE_FUNCTION_SIZE, "IPUpy_add_memory_as_array");
-DEF_STACK_USAGE(RECURSIVE_FUNCTION_SIZE, "IPUpy_add_memory_as_string");
-DEF_STACK_USAGE(RECURSIVE_FUNCTION_SIZE, "IPUpy_add_memory_as_relocatable_array");
-DEF_STACK_USAGE(RECURSIVE_FUNCTION_SIZE, "IPUpy_add_int");
-DEF_STACK_USAGE(RECURSIVE_FUNCTION_SIZE, "IPUpy_do_str");
-DEF_STACK_USAGE(RECURSIVE_FUNCTION_SIZE, "IPUpy_set_stdout");
-extern "C" void IPUpy_deinit(void);
-extern "C" void IPUpy_init(char *poplar_stack_bottom);
-extern "C" void IPUpy_add_memory_as_array(const char* name, void* data, size_t num_elts, char dtype);
-extern "C" void IPUpy_add_memory_as_string(const char* name, const char* data, size_t size);
-extern "C" void IPUpy_add_memory_as_relocatable_array(const char* name, void*** data_ptr, size_t num_elts);
-extern "C" void IPUpy_add_int(const char* name, unsigned tileid);
-extern "C" void IPUpy_do_str(const char *src, int is_single_line);
-extern "C" void IPUpy_set_stdout(char* _stdout, int len);
+
 // ------------------------ This code was inserted by IPUpyc -------------------------- //
 """
 IPUpy_START_LINES = """
@@ -159,6 +143,7 @@ def main(args, popc_args):
             ["popc", preproc_file.name, "-o", compiled_file.name] + popc_args,
             stderr=subprocess.PIPE, encoding="UTF-8"
         )
+        print(["popc", preproc_file.name, "-o", compiled_file.name] + popc_args)
         if result.returncode:
             print('Compiling with popc failed with following stderr output:\n', result.stderr)
             return
@@ -171,6 +156,7 @@ def main(args, popc_args):
             ["popc", compiled_file.name, libname, "-o", args.outfile] + popc_args,
             stderr=subprocess.PIPE, encoding="UTF-8"
         )
+        print(["popc", compiled_file.name, libname, "-o", args.outfile] + popc_args)
         if result.returncode:
             print('Linking with popc failed with following stderr output:\n', result.stderr)
 
