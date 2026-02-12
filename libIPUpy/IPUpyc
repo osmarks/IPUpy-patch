@@ -175,7 +175,7 @@ if __name__ == "__main__":
                         help='Skip compilation and linking, output preprocessed src')
     parser.add_argument('--compile_only', action='store_true',
                         help='Skip linking, output compiled vertex object')
-    parser.add_argument('--target', default='ipu2',
+    parser.add_argument('--target', default='ipu21',
                         help="Default target flag to pass to popc")
 
     IPUpyc_args, popc_args = parser.parse_known_args()

@@ -2,7 +2,7 @@
 
 libIPUpy_dir=../libIPUpy
 
-POPCFLAGS = -Wall -Wextra -I./ -I$(libIPUpy_dir) --target=ipu2 -O2
+POPCFLAGS = -Wall -Wextra -I./ -I$(libIPUpy_dir) --target=ipu21 -O2
 
 multirepl: multirepl_host.cpp multirepl_codelets.gp
 	g++ multirepl_host.cpp -std=c++17 -lpoplar -Wall -Wextra -o multirepl

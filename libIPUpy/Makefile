@@ -9,7 +9,7 @@ HARDCODEVARS=-DNDEBUG -DFFCONF_H=\"lib/oofatfs/ffconf.h\" -DMICROPY_ROM_TEXT_COM
 WARNFLAGS=-Wall -Wdouble-promotion -Wfloat-conversion -Wno-unused-function -Werror #-Wfatal-errors
 INC= -Imicropython -Ibuild -Imicropython/py -I.
 LLVMFLAGS=-X -ffunction-sections -X -fdata-sections
-POPCFLAGS=--target=ipu2 -Os $(INC) $(WARNFLAGS) $(HARDCODEVARS) $(LLVMFLAGS)
+POPCFLAGS=--target=ipu21 -Os $(INC) $(WARNFLAGS) $(HARDCODEVARS) $(LLVMFLAGS)
 
 default: make_build_dir gen_hdrs $(BUILDDIR)/runcodelets $(OBJ)
 	popc $(POPCFLAGS) -o $(BUILDDIR)/main.gp $(OBJ)
@@ -25,7 +25,7 @@ gen_hdrs:
 $(BUILDDIR)/runcodelets: runcodelets.cpp
 	g++ runcodelets.cpp -std=c++17 -O2 -lpoplar -o $(BUILDDIR)/runcodelets
 
-$(BUILDDIR)/%.gp: %.c
+$(BUILDDIR)/%.gp: %.c gen_hdrs
 	popc $(POPCFLAGS) -o $@ $< 
 
 
